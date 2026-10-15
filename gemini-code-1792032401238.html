@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Route Lab</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #000;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* 顶部仪表盘 */
+    .dashboard {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .title-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .app-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111;
+    }
+
+    .status-badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background-color: #e0e0e0;
+      color: #666;
+    }
+
+    .status-badge.active {
+      background-color: #e3f2fd;
+      color: #1976d2;
+    }
+
+    /* 模式切换控件 */
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.04);
+      padding: 6px 10px;
+      border-radius: 12px;
+    }
+
+    .mode-toggle-group {
+      display: flex;
+      background: #e4e4e6;
+      border-radius: 8px;
+      padding: 2px;
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      color: #555;
+      cursor: pointer;
+    }
+
+    .mode-btn.active {
+      background: #ffffff;
+      color: #000;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .time-input-container {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #444;
+    }
+
+    .time-input {
+      width: 44px;
+      padding: 2px 4px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    /* 数据展示区 */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .summary-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .summary-value {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.1;
+      color: #007aff;
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
+    }
+
+    .summary-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #8e8e93;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .metric-label {
+      font-size: 9px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 11px;
+      font-weight: 600;
+      color: #222;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* 图例 */
+    .legend-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .legend-title {
+      font-size: 9px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+    }
+
+    .legend-bar {
+      height: 6px;
+      width: 100%;
+      border-radius: 3px;
+      background: linear-gradient(to right, #90caf9, #0d47a1, #000000);
+    }
+
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #8e8e93;
+    }
+
+    /* 底部控制按钮 */
+    .controls {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      width: calc(100% - 32px);
+      max-width: 400px;
+    }
+
+    .btn {
+      width: 100%;
+      height: 50px;
+      border: none;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      background: #007aff;
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn.stop {
+      background: #ff3b30;
+      box-shadow: 0 6px 20px rgba(255, 59, 48, 0.4);
+    }
+
+    /* 实时调试面板 */
+    .debug-panel {
+      position: absolute;
+      bottom: 84px;
+      left: 16px;
+      right: 16px;
+      z-index: 1001;
+      background: rgba(0, 0, 0, 0.85);
+      color: #00ff66;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      border-radius: 12px;
+      padding: 10px;
+      max-height: 160px;
+      overflow-y: auto;
+      display: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .debug-panel.visible {
+      display: block;
+    }
+
+    .debug-toggle-btn {
+      position: absolute;
+      bottom: 80px;
+      right: 16px;
+      z-index: 1002;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 4px 8px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+
+    .user-location-marker {
+      width: 16px;
+      height: 16px;
+      background-color: #007aff;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- 顶部仪表盘 -->
+  <div class="dashboard">
+    <div class="title-bar">
+      <span class="app-title">Route Lab</span>
+      <span id="status-text" class="status-badge">Standby</span>
+    </div>
+
+    <!-- 模式选择控件 -->
+    <div class="controls-row">
+      <div class="mode-toggle-group">
+        <button id="mode-step-btn" class="mode-btn active">Step Mode</button>
+        <button id="mode-time-btn" class="mode-btn">Time Mode</button>
+      </div>
+
+      <div class="mode-toggle-group">
+        <button id="view-dots-btn" class="mode-btn active">Dots View</button>
+        <button id="view-heat-btn" class="mode-btn">Heatmap</button>
+      </div>
+
+      <div id="time-input-group" class="time-input-container" style="display: none;">
+        <span>Every</span>
+        <input type="number" id="time-interval-input" class="time-input" value="5" min="1" max="60" />
+        <span>sec</span>
+      </div>
+    </div>
+
+    <!-- 步数与总距离区 -->
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div id="step-count" class="summary-value">0</div>
+        <div class="summary-label">Total Steps</div>
+      </div>
+      <div class="summary-item">
+        <div id="total-dist" class="summary-value">0m</div>
+        <div class="summary-label">Total Distance</div>
+      </div>
+    </div>
+
+    <!-- 经纬度及精度 -->
+    <div class="metrics-grid">
+      <div class="metric-item">
+        <span class="metric-label">Latitude</span>
+        <span id="lat-val" class="metric-value">--</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Longitude</span>
+        <span id="lng-val" class="metric-value">--</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Accuracy</span>
+        <span id="acc-val" class="metric-value">--</span>
+      </div>
+    </div>
+
+    <!-- 颜色图例 -->
+    <div class="legend-container">
+      <div id="legend-title" class="legend-title">Farther = Darker (Step Mode)</div>
+      <div id="legend-bar" class="legend-bar"></div>
+      <div id="legend-labels" class="legend-labels">
+        <span id="legend-min">Near (0m)</span>
+        <span id="legend-max">Far (5m+)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 实时调试面板切换按钮 -->
+  <button id="debug-toggle" class="debug-toggle-btn">Debug Logs</button>
+
+  <!-- 实时调试面板 -->
+  <div id="debug-panel" class="debug-panel">
+    <div><strong>--- ROUTE LAB DEBUG PANEL ---</strong></div>
+    <div id="debug-info">Status: Idle</div>
+    <div style="margin-top: 4px; border-top: 1px dashed #555; padding-top: 4px;"><strong>Recorded Dots Log:</strong></div>
+    <div id="debug-logs"></div>
+  </div>
+
+  <!-- 底部操作按钮 -->
+  <div class="controls">
+    <button id="toggle-btn" class="btn">Start Tracking</button>
+  </div>
+
+  <!-- Leaflet JS & Leaflet Heatmap Plugin -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+  <script>
+    // 1. 初始化地图
+    const map = L.map('map', { zoomControl: false }).setView([25.0330, 121.5654], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // 2. DOM 元素
+    const toggleBtn = document.getElementById('toggle-btn');
+    const statusText = document.getElementById('status-text');
+    const stepCountDisplay = document.getElementById('step-count');
+    const totalDistDisplay = document.getElementById('total-dist');
+    const latVal = document.getElementById('lat-val');
+    const lngVal = document.getElementById('lng-val');
+    const accVal = document.getElementById('acc-val');
+
+    const modeStepBtn = document.getElementById('mode-step-btn');
+    const modeTimeBtn = document.getElementById('mode-time-btn');
+    const viewDotsBtn = document.getElementById('view-dots-btn');
+    const viewHeatBtn = document.getElementById('view-heat-btn');
+    const timeInputGroup = document.getElementById('time-input-group');
+    const timeIntervalInput = document.getElementById('time-interval-input');
+
+    const legendTitle = document.getElementById('legend-title');
+    const legendBar = document.getElementById('legend-bar');
+    const legendMin = document.getElementById('legend-min');
+    const legendMax = document.getElementById('legend-max');
+
+    const debugPanel = document.getElementById('debug-panel');
+    const debugToggleBtn = document.getElementById('debug-toggle');
+    const debugInfo = document.getElementById('debug-info');
+    const debugLogs = document.getElementById('debug-logs');
+
+    // 3. 全局状态
+    let watchId = null;
+    let timerId = null;
+    let wakeLock = null;
+
+    let trackingMode = 'step'; // 'step' | 'time'
+    let viewMode = 'dots';     // 'dots' | 'heat'
+
+    let isTracking = false;
+    let stepCount = 0;
+    let totalDistance = 0;
+
+    let currentGPS = null;
+    let lastDotGPS = null;
+
+    let locationMarker = null;
+    let accuracyCircle = null;
+    let routePolyline = null;
+    let dotMarkersGroup = L.layerGroup().addTo(map);
+    let heatLayer = null;
+
+    let recordedDots = []; // { lat, lng, dist, timestamp }
+
+    // 传感器算法变量
+    let lastStepTime = 0;
+    let lastVectorMagnitude = 0;
+    let isPeak = false;
+    const STEP_THRESHOLD = 11.8;
+    const MIN_STEP_INTERVAL = 280;
+    const MAX_ACCURACY_THRESHOLD = 30; // 过滤 30 米以上差精度的 GPS
+
+    // Debug 辅助函数
+    function logDebug(msg) {
+      const entry = document.createElement('div');
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      debugLogs.prepend(entry);
+    }
+
+    function updateDebugInfo() {
+      debugInfo.innerHTML = `Mode: ${trackingMode.toUpperCase()} | View: ${viewMode.toUpperCase()}<br/>` +
+        `Steps: ${stepCount} | GPS Acc: ${currentGPS ? Math.round(currentGPS.accuracy) + 'm' : 'N/A'}<br/>` +
+        `Total Dots: ${recordedDots.length}`;
+    }
+
+    // Haversine 距离计算
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // 颜色渐变算法
+    function getColorByDistance(dist) {
+      if (trackingMode === 'step') {
+        if (dist <= 0.5) return '#90caf9';
+        if (dist <= 2.0) return '#42a5f5';
+        if (dist <= 3.5) return '#1e88e5';
+        if (dist <= 5.0) return '#0d47a1';
+        return '#000000';
+      } else { // Time Mode:越近越深
+        if (dist <= 0.5) return '#000000';
+        if (dist <= 2.0) return '#0d47a1';
+        if (dist <= 3.5) return '#1e88e5';
+        if (dist <= 5.0) return '#42a5f5';
+        return '#90caf9';
+      }
+    }
+
+    // 打点与路线绘制
+    function recordDot() {
+      if (!currentGPS) return;
+
+      const currentLatLng = [currentGPS.lat, currentGPS.lng];
+      let distFromLast = 0;
+
+      if (lastDotGPS) {
+        distFromLast = calculateDistance(
+          lastDotGPS.lat, lastDotGPS.lng,
+          currentGPS.lat, currentGPS.lng
+        );
+        totalDistance += distFromLast;
+        totalDistDisplay.textContent = totalDistance >= 1000 ?
+          `${(totalDistance/1000).toFixed(2)}km` : `${Math.round(totalDistance)}m`;
+      }
+
+      lastDotGPS = { ...currentGPS };
+      recordedDots.push({ lat: currentGPS.lat, lng: currentGPS.lng, dist: distFromLast });
+
+      logDebug(`Dot #${recordedDots.length}: Δd=${distFromLast.toFixed(1)}m`);
+      updateDebugInfo();
+
+      // 绘制 Marker
+      const dotColor = getColorByDistance(distFromLast);
+      const marker = L.circleMarker(currentLatLng, {
+        radius: 6,
+        fillColor: dotColor,
+        color: '#ffffff',
+        weight: 2,
+        fillOpacity: 0.9
+      });
+      dotMarkersGroup.addLayer(marker);
+
+      // 更新 Polyline
+      const latLngs = recordedDots.map(d => [d.lat, d.lng]);
+      if (!routePolyline) {
+        routePolyline = L.polyline(latLngs, { color: '#007aff', weight: 4, opacity: 0.7, dashArray: '4,8' }).addTo(map);
+      } else {
+        routePolyline.setLatLngs(latLngs);
+      }
+
+      // 更新 Heatmap 数据
+      updateHeatmapLayer();
+    }
+
+    function updateHeatmapLayer() {
+      const heatData = recordedDots.map(d => [d.lat, d.lng, 1.0]);
+      if (!heatLayer) {
+        heatLayer = L.heatLayer(heatData, { radius: 25, blur: 15, maxZoom: 17 });
+      } else {
+        heatLayer.setLatLngs(heatData);
+      }
+
+      if (viewMode === 'heat' && !map.hasLayer(heatLayer)) {
+        map.addLayer(heatLayer);
+      }
+    }
+
+    // 传感器计步监听
+    function handleMotionEvent(event) {
+      if (!isTracking || trackingMode !== 'step') return;
+
+      const acc = event.accelerationIncludingGravity || event.acceleration;
+      if (!acc || acc.x === null) return;
+
+      const magnitude = Math.sqrt(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
+      const now = Date.now();
+
+      if (magnitude > STEP_THRESHOLD && magnitude < lastVectorMagnitude && !isPeak) {
+        if (now - lastStepTime > MIN_STEP_INTERVAL) {
+          stepCount++;
+          stepCountDisplay.textContent = stepCount;
+          lastStepTime = now;
+          isPeak = true;
+
+          if (stepCount % 5 === 0) recordDot();
+        }
+      }
+      if (magnitude < STEP_THRESHOLD) isPeak = false;
+      lastVectorMagnitude = magnitude;
+    }
+
+    // GPS 监听
+    function handlePositionUpdate(position) {
+      const { latitude, longitude, accuracy } = position.coords;
+
+      if (accuracy > MAX_ACCURACY_THRESHOLD) {
+        accVal.textContent = `±${Math.round(accuracy)}m (Skipped)`;
+        return;
+      }
+
+      latVal.textContent = latitude.toFixed(5);
+      lngVal.textContent = longitude.toFixed(5);
+      accVal.textContent = `±${Math.round(accuracy)}m`;
+
+      currentGPS = { lat: latitude, lng: longitude, accuracy };
+      const latLng = [latitude, longitude];
+
+      if (!locationMarker) {
+        const customIcon = L.divIcon({ className: 'user-location-marker', iconSize: [16, 16], iconAnchor: [8, 8] });
+        locationMarker = L.marker(latLng, { icon: customIcon }).addTo(map);
+        accuracyCircle = L.circle(latLng, { radius: accuracy, color: '#007aff', fillColor: '#007aff', fillOpacity: 0.12, weight: 1 }).addTo(map);
+        map.setView(latLng, 18);
+      } else {
+        locationMarker.setLatLng(latLng);
+        accuracyCircle.setLatLng(latLng);
+        accuracyCircle.setRadius(accuracy);
+        map.panTo(latLng);
+      }
+
+      updateDebugInfo();
+    }
+
+    // 界面与图例刷新
+    function updateUI() {
+      if (trackingMode === 'step') {
+        legendTitle.textContent = 'Farther = Darker (Step Mode)';
+        legendBar.style.background = 'linear-gradient(to right, #90caf9, #0d47a1, #000000)';
+        legendMin.textContent = 'Near (0m)';
+        legendMax.textContent = 'Far (5m+)';
+      } else {
+        legendTitle.textContent = 'Closer = Darker (Time Mode)';
+        legendBar.style.background = 'linear-gradient(to right, #000000, #0d47a1, #90caf9)';
+        legendMin.textContent = 'Close (0m)';
+        legendMax.textContent = 'Far (5m+)';
+      }
+
+      if (viewMode === 'dots') {
+        dotMarkersGroup.addTo(map);
+        if (routePolyline) routePolyline.addTo(map);
+        if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+      } else {
+        if (map.hasLayer(dotMarkersGroup)) map.removeLayer(dotMarkersGroup);
+        if (routePolyline && map.hasLayer(routePolyline)) map.removeLayer(routePolyline);
+        if (heatLayer) heatLayer.addTo(map);
+      }
+    }
+
+    // 模式与视图切换事件
+    modeStepBtn.addEventListener('click', () => {
+      trackingMode = 'step';
+      modeStepBtn.classList.add('active');
+      modeTimeBtn.classList.remove('active');
+      timeInputGroup.style.display = 'none';
+      updateUI();
+    });
+
+    modeTimeBtn.addEventListener('click', () => {
+      trackingMode = 'time';
+      modeTimeBtn.classList.add('active');
+      modeStepBtn.classList.remove('active');
+      timeInputGroup.style.display = 'flex';
+      updateUI();
+    });
+
+    viewDotsBtn.addEventListener('click', () => {
+      viewMode = 'dots';
+      viewDotsBtn.classList.add('active');
+      viewHeatBtn.classList.remove('active');
+      updateUI();
+    });
+
+    viewHeatBtn.addEventListener('click', () => {
+      viewMode = 'heat';
+      viewHeatBtn.classList.add('active');
+      viewDotsBtn.classList.remove('active');
+      updateUI();
+    });
+
+    debugToggleBtn.addEventListener('click', () => {
+      debugPanel.classList.toggle('visible');
+    });
+
+    // 唤醒锁与传感器权限
+    async function startTracking() {
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        try { await DeviceMotionEvent.requestPermission(); } catch (e) {}
+      }
+      window.addEventListener('devicemotion', handleMotionEvent, true);
+
+      if ('wakeLock' in navigator) {
+        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+      }
+
+      watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => logDebug(`GPS Err: ${err.message}`), {
+        enableHighAccuracy: true, maximumAge: 0, timeout: 10000
+      });
+
+      if (trackingMode === 'time') {
+        const intervalSec = parseInt(timeIntervalInput.value, 10) || 5;
+        timerId = setInterval(() => recordDot(), intervalSec * 1000);
+      }
+
+      isTracking = true;
+      toggleBtn.textContent = 'Stop Tracking';
+      toggleBtn.classList.add('stop');
+      statusText.textContent = 'Tracking Live';
+      statusText.classList.add('active');
+      logDebug('Tracking Started');
+    }
+
+    function stopTracking() {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (timerId !== null) clearInterval(timerId);
+      if (wakeLock !== null) wakeLock.release();
+      window.removeEventListener('devicemotion', handleMotionEvent, true);
+
+      isTracking = false;
+      toggleBtn.textContent = 'Start Tracking';
+      toggleBtn.classList.remove('stop');
+      statusText.textContent = 'Standby';
+      statusText.classList.remove('active');
+      logDebug('Tracking Stopped');
+    }
+
+    toggleBtn.addEventListener('click', () => isTracking ? stopTracking() : startTracking());
+  </script>
+</body>
+</html>
